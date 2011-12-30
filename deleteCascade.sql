@@ -1,9 +1,12 @@
-CREATE OR REPLACE FUNCTION deleteCascade(tableSchema character varying(200), tableName character varying(200), columnName character varying(200), id integer)
-    RETURNS text AS
-$$
+CREATE OR REPLACE FUNCTION deletecascade(tableschema character varying, tablename character varying, columnname character varying, id integer)
+  RETURNS text AS
+$BODY$
 DECLARE
     strresult character varying(2000);
+    idSelect character varying(2000);
+    newId integer;
     row_data RECORD;
+    
 BEGIN
 
 	FOR row_data IN SELECT
@@ -16,15 +19,19 @@ BEGIN
 	    JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
 		WHERE constraint_type = 'FOREIGN KEY' AND ccu.table_name= tableName LOOP
 
-		PERFORM deleteCascade(row_data.table_schema, row_data.table_name, row_data.column_name, id);
+		idSelect = 'select ' || row_data.foreign_column_name || ' from ' || tableSchema || '.' || tableName || ' where ' || columnName || ' = ' || id;
+                RAISE NOTICE '%', idSelect;
+		EXECUTE idSelect INTO newId;
+                FOR newId IN EXECUTE idSelect LOOP
+			PERFORM deleteCascade(row_data.table_schema, row_data.table_name, row_data.column_name, newId);
+		END LOOP;
 	END LOOP;
 	strresult := 'delete from ' || tableSchema || '.' || tableName || ' where ' || columnName || ' = ' || id;
 	EXECUTE strresult;
 	RAISE NOTICE '%', strresult;	
 	return 'OK';
 END;
-$$
-LANGUAGE 'plpgsql' VOLATILE
-SECURITY DEFINER
+$BODY$
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER
   COST 10;
 
